@@ -1,0 +1,2253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>EV SQUARE — Autonomous Water Hyacinth Cleanup Boat</title>
+<meta name="description" content="EV SQUARE builds autonomous robotic boats that clean water hyacinths from lakes, ponds and waterways. Engineered for ecosystem restoration." />
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          display: ['Space Grotesk', 'sans-serif'],
+          body: ['Inter', 'sans-serif'],
+          mono: ['JetBrains Mono', 'monospace'],
+        },
+        colors: {
+          cyan: { glow: '#00f0ff' },
+          neon: { green: '#00ff88' },
+          electric: { blue: '#0066ff' },
+        },
+      },
+    },
+  };
+</script>
+
+<style>
+  :root {
+    --cyan: #00f0ff;
+    --neon: #00ff88;
+    --blue: #0066ff;
+    --bg: #02060d;
+    --bg-2: #050a14;
+    --panel: rgba(10, 18, 32, 0.55);
+    --border: rgba(0, 240, 255, 0.18);
+    --text-dim: #7a8a9e;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: #e8f1fb;
+    font-family: 'Inter', system-ui, sans-serif;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ─── Background grid + ambient effects ─── */
+  .bg-grid {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(rgba(0, 240, 255, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 240, 255, 0.04) 1px, transparent 1px);
+    background-size: 60px 60px;
+    mask-image: radial-gradient(circle at 50% 30%, rgba(0,0,0,1) 0%, rgba(0,0,0,0.4) 60%, rgba(0,0,0,0) 100%);
+  }
+
+  .bg-glow-1 {
+    position: fixed;
+    top: -10%;
+    left: -10%;
+    width: 60vw;
+    height: 60vw;
+    background: radial-gradient(circle, rgba(0, 240, 255, 0.18) 0%, transparent 60%);
+    filter: blur(80px);
+    z-index: 0;
+    pointer-events: none;
+    animation: drift 24s ease-in-out infinite alternate;
+  }
+  .bg-glow-2 {
+    position: fixed;
+    bottom: -10%;
+    right: -10%;
+    width: 60vw;
+    height: 60vw;
+    background: radial-gradient(circle, rgba(0, 255, 136, 0.14) 0%, transparent 60%);
+    filter: blur(90px);
+    z-index: 0;
+    pointer-events: none;
+    animation: drift 28s ease-in-out infinite alternate-reverse;
+  }
+  @keyframes drift {
+    0% { transform: translate(0,0) scale(1); }
+    100% { transform: translate(8vw, 6vh) scale(1.15); }
+  }
+
+  /* ─── Loading screen ─── */
+  #loader {
+    position: fixed; inset: 0; z-index: 100;
+    background: radial-gradient(circle at center, #03101e 0%, #02060d 70%);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    transition: opacity .8s ease, visibility .8s ease;
+  }
+  #loader.done { opacity: 0; visibility: hidden; }
+  .loader-logo {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700; font-size: 2rem; letter-spacing: 0.4em;
+    background: linear-gradient(90deg, var(--cyan), var(--neon));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    margin-bottom: 2rem;
+  }
+  .loader-ring {
+    width: 80px; height: 80px; border-radius: 50%;
+    border: 2px solid rgba(0, 240, 255, 0.1);
+    border-top-color: var(--cyan);
+    border-right-color: var(--neon);
+    animation: spin 1.1s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loader-bar {
+    margin-top: 1.5rem;
+    width: 220px; height: 2px;
+    background: rgba(0, 240, 255, 0.1);
+    overflow: hidden; border-radius: 2px;
+  }
+  .loader-bar::after {
+    content: ''; display: block; height: 100%;
+    background: linear-gradient(90deg, var(--cyan), var(--neon));
+    animation: loadbar 1.4s ease-in-out infinite;
+  }
+  @keyframes loadbar {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(220px); }
+  }
+  .loader-status {
+    margin-top: 1rem; font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem; color: var(--text-dim); letter-spacing: 0.2em;
+  }
+
+  /* ─── Navigation ─── */
+  nav.topnav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 50;
+    padding: 1rem 2rem;
+    backdrop-filter: blur(20px);
+    background: rgba(2, 6, 13, 0.65);
+    border-bottom: 1px solid rgba(0, 240, 255, 0.08);
+    transition: all .3s ease;
+  }
+  nav.topnav .inner {
+    max-width: 1400px; margin: 0 auto;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .brand {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700; font-size: 1.15rem; letter-spacing: 0.32em;
+    background: linear-gradient(90deg, var(--cyan), #fff 60%, var(--neon));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .brand-dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--neon); box-shadow: 0 0 10px var(--neon);
+    margin-right: 0.5rem; vertical-align: middle;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.85); }
+  }
+  .nav-links a {
+    font-size: 0.82rem; color: #b8c5d6; margin: 0 1rem;
+    text-transform: uppercase; letter-spacing: 0.15em; font-weight: 500;
+    transition: color .25s;
+  }
+  .nav-links a:hover { color: var(--cyan); }
+
+  /* ─── Buttons ─── */
+  .btn-primary {
+    display: inline-flex; align-items: center; gap: 0.6rem;
+    padding: 0.85rem 1.6rem;
+    background: linear-gradient(135deg, rgba(0, 240, 255, 0.15), rgba(0, 255, 136, 0.1));
+    border: 1px solid rgba(0, 240, 255, 0.5);
+    color: var(--cyan); font-weight: 600;
+    font-family: 'Space Grotesk', sans-serif;
+    letter-spacing: 0.1em; text-transform: uppercase; font-size: 0.78rem;
+    border-radius: 4px;
+    transition: all .3s ease;
+    position: relative; overflow: hidden;
+    cursor: pointer;
+  }
+  .btn-primary::before {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(0, 240, 255, 0.3), transparent);
+    transform: translateX(-100%);
+    transition: transform .6s;
+  }
+  .btn-primary:hover { color: #fff; box-shadow: 0 0 30px rgba(0, 240, 255, 0.4); }
+  .btn-primary:hover::before { transform: translateX(100%); }
+
+  .btn-ghost {
+    display: inline-flex; align-items: center; gap: 0.6rem;
+    padding: 0.85rem 1.6rem;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #e8f1fb; font-weight: 500;
+    font-family: 'Space Grotesk', sans-serif;
+    letter-spacing: 0.1em; text-transform: uppercase; font-size: 0.78rem;
+    border-radius: 4px;
+    transition: all .3s ease;
+    cursor: pointer;
+  }
+  .btn-ghost:hover { border-color: var(--cyan); color: var(--cyan); }
+
+  /* ─── Glass panels ─── */
+  .glass {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    backdrop-filter: blur(18px);
+    border-radius: 12px;
+  }
+
+  /* ─── Section heads ─── */
+  .eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem; letter-spacing: 0.3em; text-transform: uppercase;
+    color: var(--cyan); margin-bottom: 1rem;
+    display: inline-flex; align-items: center; gap: 0.6rem;
+  }
+  .eyebrow::before {
+    content: ''; width: 24px; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--cyan));
+  }
+  .h-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600; line-height: 1.05; letter-spacing: -0.02em;
+  }
+  .gradient-text {
+    background: linear-gradient(135deg, #fff 0%, var(--cyan) 50%, var(--neon) 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+
+  /* ─── Hero canvas overlay ─── */
+  #hero-canvas {
+    position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  }
+  #boat-canvas {
+    width: 100%; height: 100%; display: block; cursor: grab;
+  }
+  #boat-canvas:active { cursor: grabbing; }
+
+  /* ─── Particles ─── */
+  .particle {
+    position: absolute; border-radius: 50%;
+    background: var(--cyan); opacity: 0.6;
+    pointer-events: none;
+  }
+
+  /* ─── Scroll reveal ─── */
+  .reveal { opacity: 0; transform: translateY(40px); transition: opacity .9s ease, transform .9s ease; }
+  .reveal.in { opacity: 1; transform: translateY(0); }
+
+  /* ─── HUD elements ─── */
+  .hud-corner {
+    position: absolute; width: 20px; height: 20px;
+    border: 1px solid var(--cyan); opacity: 0.6;
+  }
+  .hud-corner.tl { top: 0; left: 0; border-right: 0; border-bottom: 0; }
+  .hud-corner.tr { top: 0; right: 0; border-left: 0; border-bottom: 0; }
+  .hud-corner.bl { bottom: 0; left: 0; border-right: 0; border-top: 0; }
+  .hud-corner.br { bottom: 0; right: 0; border-left: 0; border-top: 0; }
+
+  /* ─── Workflow steps ─── */
+  .step-card { position: relative; transition: all .4s; }
+  .step-card:hover { transform: translateY(-6px); }
+  .step-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 4rem; font-weight: 500;
+    background: linear-gradient(135deg, var(--cyan), transparent);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    opacity: 0.4;
+    line-height: 1;
+  }
+
+  /* ─── Tech card ─── */
+  .tech-card {
+    position: relative; overflow: hidden;
+    transition: all .4s;
+  }
+  .tech-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+    transform: translateX(-100%);
+    transition: transform .8s;
+  }
+  .tech-card:hover { border-color: rgba(0, 240, 255, 0.45); transform: translateY(-4px); }
+  .tech-card:hover::before { transform: translateX(100%); }
+
+  /* ─── Boat info card ─── */
+  .info-card {
+    position: absolute;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity .35s ease, transform .35s ease;
+    z-index: 10;
+  }
+  .info-card.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
+
+  /* ─── Part chips ─── */
+  .part-chip {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.55rem 0.9rem;
+    border: 1px solid rgba(0, 240, 255, 0.25);
+    background: rgba(0, 240, 255, 0.05);
+    border-radius: 30px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem; letter-spacing: 0.05em;
+    color: #c8d6e8; cursor: pointer;
+    transition: all .25s;
+  }
+  .part-chip:hover, .part-chip.active {
+    border-color: var(--cyan); color: var(--cyan);
+    background: rgba(0, 240, 255, 0.12);
+    box-shadow: 0 0 20px rgba(0, 240, 255, 0.25);
+  }
+  .part-chip .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--cyan);
+    box-shadow: 0 0 8px var(--cyan);
+  }
+
+  /* ─── Marquee ─── */
+  .marquee {
+    display: flex; gap: 4rem;
+    animation: marquee 35s linear infinite;
+    white-space: nowrap;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.4);
+    letter-spacing: 0.25em;
+  }
+  @keyframes marquee {
+    to { transform: translateX(-50%); }
+  }
+
+  /* ─── Workflow connector ─── */
+  .flow-line {
+    position: relative;
+    height: 2px;
+    background: linear-gradient(90deg, rgba(0,240,255,0.1), rgba(0,240,255,0.4), rgba(0,255,136,0.4), rgba(0,255,136,0.1));
+    overflow: hidden;
+  }
+  .flow-line::after {
+    content: '';
+    position: absolute; top: 0; left: 0;
+    width: 40%; height: 100%;
+    background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+    animation: flowmove 3s linear infinite;
+  }
+  @keyframes flowmove { to { transform: translateX(250%); } }
+
+  /* ─── Gallery item ─── */
+  .gal-item {
+    position: relative; overflow: hidden;
+    aspect-ratio: 4/3;
+    border: 1px solid rgba(0, 240, 255, 0.1);
+    background: linear-gradient(135deg, rgba(0,240,255,0.05), rgba(0,255,136,0.03));
+    transition: all .4s;
+  }
+  .gal-item:hover { border-color: rgba(0, 240, 255, 0.4); transform: scale(1.02); }
+  .gal-overlay {
+    position: absolute; inset: 0;
+    display: flex; align-items: flex-end; padding: 1.2rem;
+    background: linear-gradient(180deg, transparent 50%, rgba(2,6,13,0.85));
+    opacity: 0; transition: opacity .3s;
+  }
+  .gal-item:hover .gal-overlay { opacity: 1; }
+
+  /* ─── Stat ─── */
+  .stat-num {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 3.5rem; font-weight: 600;
+    background: linear-gradient(135deg, var(--cyan), var(--neon));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    line-height: 1;
+  }
+
+  /* ─── Water ripple ─── */
+  .ripple-bg {
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse at 20% 80%, rgba(0, 240, 255, 0.15) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 20%, rgba(0, 255, 136, 0.1) 0%, transparent 50%);
+    pointer-events: none;
+  }
+
+  /* ─── Contact form ─── */
+  .input-field {
+    background: rgba(0, 240, 255, 0.04);
+    border: 1px solid rgba(0, 240, 255, 0.15);
+    color: #fff;
+    padding: 0.9rem 1.1rem;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.92rem;
+    border-radius: 6px;
+    width: 100%;
+    transition: all .25s;
+  }
+  .input-field:focus {
+    outline: none; border-color: var(--cyan);
+    box-shadow: 0 0 0 3px rgba(0, 240, 255, 0.1);
+  }
+  .input-field::placeholder { color: var(--text-dim); }
+
+  /* ─── Mobile ─── */
+  @media (max-width: 768px) {
+    .nav-links { display: none; }
+    nav.topnav { padding: 1rem; }
+    .h-title { font-size: 2.3rem !important; }
+  }
+
+  /* ─── Custom scrollbar ─── */
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-track { background: #02060d; }
+  ::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, var(--cyan), var(--neon));
+    border-radius: 4px;
+  }
+</style>
+</head>
+<body class="font-body">
+
+<!-- ─── LOADING SCREEN ─── -->
+<div id="loader">
+  <div class="loader-logo">EV SQUARE</div>
+  <div class="loader-ring"></div>
+  <div class="loader-bar"></div>
+  <div class="loader-status">INITIALIZING SYSTEMS...</div>
+</div>
+
+<!-- ─── BACKGROUND ─── -->
+<div class="bg-grid"></div>
+<div class="bg-glow-1"></div>
+<div class="bg-glow-2"></div>
+
+<!-- ─── NAVIGATION ─── -->
+<nav class="topnav">
+  <div class="inner">
+    <a href="#top" class="brand">
+      <span class="brand-dot"></span>EV·SQUARE
+    </a>
+    <div class="nav-links">
+      <a href="#about">Mission</a>
+      <a href="#explore">Boat</a>
+      <a href="#how">How it Works</a>
+      <a href="#tech">Tech</a>
+      <a href="#impact">Impact</a>
+      <a href="#contact">Contact</a>
+    </div>
+    <a href="#contact" class="btn-primary" style="padding: 0.55rem 1.1rem; font-size: 0.7rem;">
+      Request Demo
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    </a>
+  </div>
+</nav>
+
+<!-- ════════════════════════════════════════════════════════
+     SECTION 1: HERO
+════════════════════════════════════════════════════════ -->
+<section id="top" class="relative min-h-screen flex items-center pt-24 pb-12" style="z-index: 1;">
+  <div id="hero-particles" style="position: absolute; inset: 0; z-index: 0; overflow: hidden;"></div>
+
+  <div class="max-w-7xl mx-auto px-6 w-full grid lg:grid-cols-12 gap-8 items-center relative" style="z-index: 2;">
+
+    <div class="lg:col-span-7">
+      <div class="eyebrow reveal">PROJECT · AQUATICA-01 / ECOSYSTEM ROBOTICS</div>
+
+      <h1 class="h-title reveal" style="font-size: clamp(2.5rem, 6vw, 5.2rem); margin-bottom: 1.5rem;">
+        Autonomous boats<br/>
+        <span class="gradient-text">cleaning lakes,</span><br/>
+        restoring ecosystems.
+      </h1>
+
+      <p class="reveal text-lg text-gray-400 max-w-xl mb-8" style="line-height: 1.7;">
+        EV SQUARE is building a fleet of compact robotic vessels that harvest, shred and store invasive water hyacinths — autonomously, electrically, and at scale.
+      </p>
+
+      <div class="reveal flex flex-wrap gap-3 mb-12">
+        <a href="#explore" class="btn-primary">
+          Explore the Boat
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+        </a>
+        <a href="#how" class="btn-ghost">See How It Works</a>
+      </div>
+
+      <!-- Telemetry strip -->
+      <div class="reveal grid grid-cols-3 gap-px bg-cyan-glow/10 max-w-xl glass" style="padding: 0; overflow: hidden;">
+        <div class="p-4">
+          <div class="text-xs font-mono text-gray-500 mb-1">RANGE</div>
+          <div class="font-display text-xl text-cyan-glow">12 km</div>
+        </div>
+        <div class="p-4">
+          <div class="text-xs font-mono text-gray-500 mb-1">CAPACITY</div>
+          <div class="font-display text-xl text-cyan-glow">250 kg</div>
+        </div>
+        <div class="p-4">
+          <div class="text-xs font-mono text-gray-500 mb-1">AUTONOMY</div>
+          <div class="font-display text-xl text-cyan-glow">8 hrs</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mini 3D preview placeholder + HUD -->
+    <div class="lg:col-span-5 relative reveal" style="height: 460px;">
+      <div class="glass h-full relative overflow-hidden" style="border-radius: 8px;">
+        <div class="hud-corner tl"></div>
+        <div class="hud-corner tr"></div>
+        <div class="hud-corner bl"></div>
+        <div class="hud-corner br"></div>
+
+        <div class="absolute top-4 left-4 right-4 flex justify-between text-xs font-mono text-cyan-glow" style="z-index:5;">
+          <div>● LIVE PREVIEW</div>
+          <div id="hero-time">--:--:--</div>
+        </div>
+
+        <div id="hero-boat-canvas" style="width: 100%; height: 100%;"></div>
+
+        <div class="absolute bottom-4 left-4 right-4 flex justify-between text-xs font-mono text-gray-500" style="z-index:5;">
+          <div>UNIT · EVS-01</div>
+          <div>STATUS · <span class="text-neon-green">OPERATIONAL</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scroll indicator -->
+  <div class="absolute bottom-6 left-1/2 -translate-x-1/2 text-xs font-mono text-gray-500 flex flex-col items-center gap-2 reveal">
+    <div>SCROLL</div>
+    <div style="width: 1px; height: 30px; background: linear-gradient(180deg, var(--cyan), transparent); animation: pulse 2s ease infinite;"></div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════
+     MARQUEE STRIP
+════════════════════════════════════════════════════════ -->
+<div class="border-y border-cyan-glow/10 py-4 overflow-hidden relative" style="z-index: 1;">
+  <div class="marquee">
+    <span>◆ AUTONOMOUS HARVESTING</span>
+    <span>◆ ELECTRIC PROPULSION</span>
+    <span>◆ GPS NAVIGATION</span>
+    <span>◆ ZERO EMISSIONS</span>
+    <span>◆ REAL-TIME TELEMETRY</span>
+    <span>◆ ECOSYSTEM RESTORATION</span>
+    <span>◆ AUTONOMOUS HARVESTING</span>
+    <span>◆ ELECTRIC PROPULSION</span>
+    <span>◆ GPS NAVIGATION</span>
+    <span>◆ ZERO EMISSIONS</span>
+    <span>◆ REAL-TIME TELEMETRY</span>
+    <span>◆ ECOSYSTEM RESTORATION</span>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     SECTION 2: ABOUT / THE PROBLEM
+════════════════════════════════════════════════════════ -->
+<section id="about" class="relative py-32" style="z-index: 1;">
+  <div class="max-w-7xl mx-auto px-6">
+
+    <div class="grid lg:grid-cols-2 gap-16 items-start">
+      <div class="reveal">
+        <div class="eyebrow">01 / THE PROBLEM</div>
+        <h2 class="h-title" style="font-size: clamp(2rem, 4vw, 3.4rem); margin-bottom: 1.5rem;">
+          Water hyacinths are<br/><span class="gradient-text">silently killing</span> our waterways.
+        </h2>
+        <p class="text-gray-400 leading-relaxed mb-6">
+          Listed among the world's most invasive aquatic plants, water hyacinths double in surface area every two weeks. They suffocate fish, choke irrigation systems, breed mosquitoes and destroy fragile freshwater ecosystems across India and beyond.
+        </p>
+        <p class="text-gray-400 leading-relaxed">
+          Manual removal is slow, dangerous and unsustainable. Chemical control poisons the lake. We built a third option — engineered, electric, autonomous.
+        </p>
+      </div>
+
+      <div class="reveal space-y-4">
+        <div class="glass p-6 flex items-start gap-4">
+          <div class="text-3xl">🌊</div>
+          <div>
+            <div class="font-display font-semibold text-cyan-glow mb-1">200 million tonnes</div>
+            <div class="text-sm text-gray-400">of invasive aquatic biomass clogs Indian lakes every year.</div>
+          </div>
+        </div>
+        <div class="glass p-6 flex items-start gap-4">
+          <div class="text-3xl">⚠️</div>
+          <div>
+            <div class="font-display font-semibold text-cyan-glow mb-1">Doubles in 14 days</div>
+            <div class="text-sm text-gray-400">Unmanaged hyacinth blooms collapse fisheries and irrigation infrastructure.</div>
+          </div>
+        </div>
+        <div class="glass p-6 flex items-start gap-4">
+          <div class="text-3xl">🛶</div>
+          <div>
+            <div class="font-display font-semibold text-cyan-glow mb-1">Manual removal fails</div>
+            <div class="text-sm text-gray-400">Labour-intensive, unsafe, and unable to match the regrowth rate.</div>
+          </div>
+        </div>
+        <div class="glass p-6 flex items-start gap-4" style="border-color: rgba(0, 255, 136, 0.35);">
+          <div class="text-3xl">🤖</div>
+          <div>
+            <div class="font-display font-semibold text-neon-green mb-1">EV SQUARE's answer</div>
+            <div class="text-sm text-gray-300">An autonomous robotic vessel that harvests, shreds, and stores hyacinths — continuously, electrically, scalably.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════
+     SECTION 3: INTERACTIVE 3D BOAT
+════════════════════════════════════════════════════════ -->
+<section id="explore" class="relative py-24" style="z-index: 1;">
+  <div class="max-w-7xl mx-auto px-6">
+
+    <div class="text-center mb-12 reveal">
+      <div class="eyebrow justify-center inline-flex">02 / THE MACHINE</div>
+      <h2 class="h-title" style="font-size: clamp(2rem, 4vw, 3.6rem);">
+        Inspect <span class="gradient-text">every system.</span>
+      </h2>
+      <p class="text-gray-400 mt-3 max-w-2xl mx-auto">Drag to rotate. Scroll to zoom. Click the chips below to spotlight each subsystem of the AQUATICA-01.</p>
+    </div>
+
+    <!-- 3D viewer -->
+    <div class="relative reveal glass overflow-hidden" style="height: 70vh; min-height: 560px; border-radius: 16px;">
+      <div class="hud-corner tl"></div>
+      <div class="hud-corner tr"></div>
+      <div class="hud-corner bl"></div>
+      <div class="hud-corner br"></div>
+
+      <!-- HUD top bar -->
+      <div class="absolute top-0 left-0 right-0 p-5 flex justify-between items-start" style="z-index: 5; pointer-events: none;">
+        <div class="font-mono text-xs space-y-1">
+          <div class="text-cyan-glow">● TELEMETRY ACTIVE</div>
+          <div class="text-gray-500">MODEL · AQUATICA-01</div>
+          <div class="text-gray-500">REV · 4.2</div>
+        </div>
+        <div class="font-mono text-xs text-right space-y-1">
+          <div class="text-gray-500">VIEW · INTERACTIVE</div>
+          <div class="text-gray-500">DRAG TO ROTATE</div>
+          <div class="text-gray-500">SCROLL TO ZOOM</div>
+        </div>
+      </div>
+
+      <!-- Canvas -->
+      <div id="boat-canvas-wrap" style="width: 100%; height: 100%;">
+        <canvas id="boat-canvas"></canvas>
+      </div>
+
+      <!-- Floating info card -->
+      <div id="info-card" class="info-card glass" style="bottom: 30px; left: 30px; max-width: 340px; padding: 1.5rem;">
+        <div class="font-mono text-xs text-cyan-glow mb-2" id="info-tag">SYSTEM · 01</div>
+        <div class="font-display font-semibold text-xl mb-2" id="info-title">Front Conveyor Belt</div>
+        <div class="text-sm text-gray-400 leading-relaxed" id="info-desc">Inclined collection conveyor with paddle cleats scoops floating hyacinths from the water surface and feeds them into the shredder.</div>
+      </div>
+
+      <!-- Bottom HUD -->
+      <div class="absolute bottom-4 right-5 font-mono text-xs text-gray-500" style="z-index: 5;">
+        LAT 13.0050°N · LON 80.1444°E
+      </div>
+    </div>
+
+    <!-- Part selector chips -->
+    <div class="mt-6 flex flex-wrap justify-center gap-2 reveal" id="part-chips">
+      <div class="part-chip active" data-part="conveyor"><span class="dot"></span>Front Conveyor</div>
+      <div class="part-chip" data-part="shredder"><span class="dot"></span>Shredder Unit</div>
+      <div class="part-chip" data-part="storage"><span class="dot"></span>Storage Compartment</div>
+      <div class="part-chip" data-part="propeller"><span class="dot"></span>Propulsion</div>
+      <div class="part-chip" data-part="gps"><span class="dot"></span>GPS & Sensors</div>
+      <div class="part-chip" data-part="solar"><span class="dot"></span>Solar Power</div>
+      <div class="part-chip" data-part="battery"><span class="dot"></span>Battery Pack</div>
+      <div class="part-chip" data-part="hull"><span class="dot"></span>Full View</div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════
+     SECTION 4: HOW IT WORKS
+════════════════════════════════════════════════════════ -->
+<section id="how" class="relative py-32" style="z-index: 1;">
+  <div class="ripple-bg"></div>
+  <div class="max-w-7xl mx-auto px-6 relative">
+
+    <div class="text-center mb-16 reveal">
+      <div class="eyebrow justify-center inline-flex">03 / WORKFLOW</div>
+      <h2 class="h-title" style="font-size: clamp(2rem, 4vw, 3.4rem);">
+        Four steps. <span class="gradient-text">One closed loop.</span>
+      </h2>
+    </div>
+
+    <!-- Workflow -->
+    <div class="grid md:grid-cols-4 gap-6 reveal">
+      <div class="step-card glass p-6">
+        <div class="step-num">01</div>
+        <div class="font-display font-semibold text-lg mt-2 mb-2 text-cyan-glow">Collection</div>
+        <div class="text-sm text-gray-400 leading-relaxed">Boat autonomously navigates to dense hyacinth zones using GPS waypoints and obstacle-avoiding ultrasonic sensors.</div>
+        <div class="mt-4 text-3xl">🛰️</div>
+      </div>
+      <div class="step-card glass p-6">
+        <div class="step-num">02</div>
+        <div class="font-display font-semibold text-lg mt-2 mb-2 text-cyan-glow">Conveyor</div>
+        <div class="text-sm text-gray-400 leading-relaxed">An inclined belt with paddle cleats scoops floating biomass from the water surface and transports it onto the deck.</div>
+        <div class="mt-4 text-3xl">⚙️</div>
+      </div>
+      <div class="step-card glass p-6">
+        <div class="step-num">03</div>
+        <div class="font-display font-semibold text-lg mt-2 mb-2 text-cyan-glow">Shredding</div>
+        <div class="text-sm text-gray-400 leading-relaxed">Twin counter-rotating blades reduce the plant matter into uniform biomass chips, ready for downstream reuse.</div>
+        <div class="mt-4 text-3xl">🔪</div>
+      </div>
+      <div class="step-card glass p-6">
+        <div class="step-num">04</div>
+        <div class="font-display font-semibold text-lg mt-2 mb-2 text-cyan-glow">Storage</div>
+        <div class="text-sm text-gray-400 leading-relaxed">Shredded biomass is collected in a sealed rear hopper. Operators dock and offload for composting, biogas or briquetting.</div>
+        <div class="mt-4 text-3xl">📦</div>
+      </div>
+    </div>
+
+    <!-- Flow line -->
+    <div class="mt-10 reveal">
+      <div class="flow-line"></div>
+      <div class="grid grid-cols-4 mt-4 text-center text-xs font-mono text-gray-500">
+        <div>HARVEST</div>
+        <div>TRANSPORT</div>
+        <div>PROCESS</div>
+        <div>STORE</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════
+     SECTION 5: TECHNOLOGY
+════════════════════════════════════════════════════════ -->
+<section id="tech" class="relative py-32" style="z-index: 1;">
+  <div class="max-w-7xl mx-auto px-6">
+
+    <div class="grid lg:grid-cols-12 gap-12 mb-16">
+      <div class="lg:col-span-6 reveal">
+        <div class="eyebrow">04 / TECHNOLOGY STACK</div>
+        <h2 class="h-title" style="font-size: clamp(2rem, 4vw, 3.4rem);">
+          Built from <span class="gradient-text">first principles.</span>
+        </h2>
+      </div>
+      <div class="lg:col-span-6 flex items-end reveal">
+        <p class="text-gray-400 leading-relaxed">Every subsystem is engineered in-house — from the mechanical harvesting train to the embedded navigation stack. Modular by design, serviceable in the field.</p>
+      </div>
+    </div>
+
+    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-5 reveal">
+      <!-- Tech cards -->
+      <div class="tech-card glass p-6">
+        <div class="text-cyan-glow text-2xl mb-3">📡</div>
+        <div class="font-display font-semibold text-lg mb-2">GPS Navigation</div>
+        <div class="text-sm text-gray-400 leading-relaxed">Multi-band GNSS receiver with waypoint following, geofencing and return-to-home failsafe.</div>
+        <div class="mt-4 pt-4 border-t border-cyan-glow/10 font-mono text-xs text-gray-500">±1.5 m accuracy</div>
+      </div>
+      <div class="tech-card glass p-6">
+        <div class="text-cyan-glow text-2xl mb-3">📶</div>
+        <div class="font-display font-semibold text-lg mb-2">Ultrasonic Sensing</div>
+        <div class="text-sm text-gray-400 leading-relaxed">360° obstacle detection ring detects shorelines, boats and floating debris in real time.</div>
+        <div class="mt-4 pt-4 border-t border-cyan-glow/10 font-mono text-xs text-gray-500">5 m range · 10 Hz</div>
+      </div>
+      <div class="tech-card glass p-6">
+        <div class="text-cyan-glow text-2xl mb-3">⚡</div>
+        <div class="font-display font-semibold text-lg mb-2">Electric Propulsion</div>
+        <div class="text-sm text-gray-400 leading-relaxed">Twin brushless thrusters give precise differential steering with zero emissions and minimal noise.</div>
+        <div class="mt-4 pt-4 border-t border-cyan-glow/10 font-mono text-xs text-gray-500">2 × 350 W BLDC</div>
+      </div>
+      <div class="tech-card glass p-6">
+        <div class="text-cyan-glow text-2xl mb-3">🔋</div>
+        <div class="font-display font-semibold text-lg mb-2">Lithium Battery Pack</div>
+        <div class="text-sm text-gray-400 leading-relaxed">Sealed marine-grade LiFePO₄ pack with integrated BMS, fast charging and thermal protection.</div>
+        <div class="mt-4 pt-4 border-t border-cyan-glow/10 font-mono text-xs text-gray-500">48 V · 2.4 kWh</div>
+      </div>
+      <div class="tech-card glass p-6">
+        <div class="text-cyan-glow text-2xl mb-3">☀️</div>
+        <div class="font-display font-semibold text-lg mb-2">Solar Trickle Charge</div>
+        <div class="text-sm text-gray-400 leading-relaxed">Optional flexible solar array extends operational runtime and supports remote deployments.</div>
+        <div class="mt-4 pt-4 border-t border-cyan-glow/10 font-mono text-xs text-gray-500">120 W peak</div>
+      </div>
+      <div class="tech-card glass p-6">
+        <div class="text-cyan-glow text-2xl mb-3">🌀</div>
+        <div class="font-display font-semibold text-lg mb-2">Harvesting Conveyor</div>
+        <div class="text-sm text-gray-400 leading-relaxed">Stainless-steel cleated belt operates at variable speed and clears in self-cleaning mode.</div>
+        <div class="mt-4 pt-4 border-t border-cyan-glow/10 font-mono text-xs text-gray-500">0.4 m/s · IP67</div>
+      </div>
+      <div class="tech-card glass p-6">
+        <div class="text-cyan-glow text-2xl mb-3">✂️</div>
+        <div class="font-display font-semibold text-lg mb-2">Shredding Mechanism</div>
+        <div class="text-sm text-gray-400 leading-relaxed">Twin counter-rotating hardened steel blades reduce biomass to uniform 20 mm chips.</div>
+        <div class="mt-4 pt-4 border-t border-cyan-glow/10 font-mono text-xs text-gray-500">220 rpm · 800 W</div>
+      </div>
+      <div class="tech-card glass p-6">
+        <div class="text-cyan-glow text-2xl mb-3">🧠</div>
+        <div class="font-display font-semibold text-lg mb-2">Edge AI Module</div>
+        <div class="text-sm text-gray-400 leading-relaxed">On-board vision model identifies hyacinth density, plans optimal path and avoids non-target plants.</div>
+        <div class="mt-4 pt-4 border-t border-cyan-glow/10 font-mono text-xs text-gray-500">Optional · Jetson Nano</div>
+      </div>
+      <div class="tech-card glass p-6">
+        <div class="text-cyan-glow text-2xl mb-3">📊</div>
+        <div class="font-display font-semibold text-lg mb-2">Telemetry & Dashboard</div>
+        <div class="text-sm text-gray-400 leading-relaxed">4G telemetry streams location, battery state, and harvest tonnage to a live web dashboard.</div>
+        <div class="mt-4 pt-4 border-t border-cyan-glow/10 font-mono text-xs text-gray-500">MQTT · 1 Hz</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════
+     SECTION 6: FEATURES
+════════════════════════════════════════════════════════ -->
+<section class="relative py-32 border-t border-cyan-glow/5" style="z-index: 1;">
+  <div class="max-w-7xl mx-auto px-6">
+    <div class="text-center mb-16 reveal">
+      <div class="eyebrow justify-center inline-flex">05 / KEY FEATURES</div>
+      <h2 class="h-title" style="font-size: clamp(2rem, 4vw, 3.4rem);">
+        Engineered for <span class="gradient-text">the real world.</span>
+      </h2>
+    </div>
+
+    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-5 reveal">
+      <div class="glass p-6">
+        <div class="text-2xl font-display text-cyan-glow mb-2">01</div>
+        <div class="font-display font-semibold mb-1">Fully autonomous</div>
+        <div class="text-sm text-gray-400">GPS waypoint navigation with obstacle avoidance.</div>
+      </div>
+      <div class="glass p-6">
+        <div class="text-2xl font-display text-cyan-glow mb-2">02</div>
+        <div class="font-display font-semibold mb-1">Zero emissions</div>
+        <div class="text-sm text-gray-400">All-electric drive. Solar-augmented optional.</div>
+      </div>
+      <div class="glass p-6">
+        <div class="text-2xl font-display text-cyan-glow mb-2">03</div>
+        <div class="font-display font-semibold mb-1">Low maintenance</div>
+        <div class="text-sm text-gray-400">Marine-grade IP67 enclosures. Modular swap parts.</div>
+      </div>
+      <div class="glass p-6">
+        <div class="text-2xl font-display text-cyan-glow mb-2">04</div>
+        <div class="font-display font-semibold mb-1">Fleet-ready</div>
+        <div class="text-sm text-gray-400">Scale from one boat to a coordinated fleet.</div>
+      </div>
+      <div class="glass p-6">
+        <div class="text-2xl font-display text-cyan-glow mb-2">05</div>
+        <div class="font-display font-semibold mb-1">Real-time telemetry</div>
+        <div class="text-sm text-gray-400">Cloud dashboard for live tracking and reports.</div>
+      </div>
+      <div class="glass p-6">
+        <div class="text-2xl font-display text-cyan-glow mb-2">06</div>
+        <div class="font-display font-semibold mb-1">AI-augmented</div>
+        <div class="text-sm text-gray-400">Optional vision module for adaptive harvesting.</div>
+      </div>
+      <div class="glass p-6">
+        <div class="text-2xl font-display text-cyan-glow mb-2">07</div>
+        <div class="font-display font-semibold mb-1">Quiet operation</div>
+        <div class="text-sm text-gray-400">Brushless drive — under 55 dB at 5 m.</div>
+      </div>
+      <div class="glass p-6">
+        <div class="text-2xl font-display text-cyan-glow mb-2">08</div>
+        <div class="font-display font-semibold mb-1">Compact deployment</div>
+        <div class="text-sm text-gray-400">Single-person launch from a small trailer.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════
+     SECTION 7: FUTURE APPLICATIONS
+════════════════════════════════════════════════════════ -->
+<section class="relative py-32" style="z-index: 1;">
+  <div class="max-w-7xl mx-auto px-6">
+    <div class="grid lg:grid-cols-12 gap-12 mb-12">
+      <div class="lg:col-span-7 reveal">
+        <div class="eyebrow">06 / WHERE IT GOES NEXT</div>
+        <h2 class="h-title" style="font-size: clamp(2rem, 4vw, 3.4rem);">
+          From municipal lakes to <span class="gradient-text">national rivers.</span>
+        </h2>
+      </div>
+    </div>
+
+    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-5 reveal">
+      <div class="tech-card glass p-7">
+        <div class="text-4xl mb-3">🏙️</div>
+        <div class="font-display text-xl font-semibold mb-2">Smart-City Lakes</div>
+        <div class="text-sm text-gray-400 leading-relaxed">Continuous maintenance of urban lakes and retention ponds with scheduled autonomous routes.</div>
+      </div>
+      <div class="tech-card glass p-7">
+        <div class="text-4xl mb-3">🏝️</div>
+        <div class="font-display text-xl font-semibold mb-2">Resorts & Tourism</div>
+        <div class="text-sm text-gray-400 leading-relaxed">Keep backwaters, hotel lagoons and resort waterfronts pristine without manual labour.</div>
+      </div>
+      <div class="tech-card glass p-7">
+        <div class="text-4xl mb-3">🏭</div>
+        <div class="font-display text-xl font-semibold mb-2">Industrial Water Systems</div>
+        <div class="text-sm text-gray-400 leading-relaxed">Protect cooling ponds, intake channels and reservoirs at thermal plants and refineries.</div>
+      </div>
+      <div class="tech-card glass p-7">
+        <div class="text-4xl mb-3">🌾</div>
+        <div class="font-display text-xl font-semibold mb-2">Agriculture Waterways</div>
+        <div class="text-sm text-gray-400 leading-relaxed">Clear irrigation canals and farm reservoirs to restore flow and protect crop yields.</div>
+      </div>
+      <div class="tech-card glass p-7">
+        <div class="text-4xl mb-3">🌊</div>
+        <div class="font-display text-xl font-semibold mb-2">River Restoration</div>
+        <div class="text-sm text-gray-400 leading-relaxed">Coordinated multi-unit fleets for tackling large-scale invasive blooms in major river systems.</div>
+      </div>
+      <div class="tech-card glass p-7">
+        <div class="text-4xl mb-3">🔬</div>
+        <div class="font-display text-xl font-semibold mb-2">Environmental Monitoring</div>
+        <div class="text-sm text-gray-400 leading-relaxed">Carry water-quality sensor payloads for pH, turbidity, DO and pollution mapping.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════
+     SECTION 8: IMPACT
+════════════════════════════════════════════════════════ -->
+<section id="impact" class="relative py-32 border-y border-cyan-glow/10" style="z-index: 1;">
+  <div class="ripple-bg"></div>
+  <div class="max-w-7xl mx-auto px-6 relative">
+    <div class="text-center mb-16 reveal">
+      <div class="eyebrow justify-center inline-flex">07 / IMPACT</div>
+      <h2 class="h-title" style="font-size: clamp(2rem, 4vw, 3.4rem);">
+        Measurable <span class="gradient-text">change.</span>
+      </h2>
+    </div>
+
+    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-16 reveal">
+      <div class="text-center">
+        <div class="stat-num" data-target="250">0</div>
+        <div class="text-xs font-mono text-gray-500 mt-2 tracking-widest">KG / HOUR HARVESTED</div>
+      </div>
+      <div class="text-center">
+        <div class="stat-num"><span data-target="98">0</span>%</div>
+        <div class="text-xs font-mono text-gray-500 mt-2 tracking-widest">REDUCTION IN MANUAL LABOUR</div>
+      </div>
+      <div class="text-center">
+        <div class="stat-num"><span data-target="0">0</span>%</div>
+        <div class="text-xs font-mono text-gray-500 mt-2 tracking-widest">CHEMICAL HERBICIDE USED</div>
+      </div>
+      <div class="text-center">
+        <div class="stat-num" data-target="12">0</div>
+        <div class="text-xs font-mono text-gray-500 mt-2 tracking-widest">HOURS DAILY UPTIME</div>
+      </div>
+    </div>
+
+    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-5 reveal">
+      <div class="glass p-7">
+        <div class="font-display font-semibold text-cyan-glow mb-2">Ecosystem Recovery</div>
+        <div class="text-sm text-gray-400 leading-relaxed">Restoring sunlight penetration and dissolved oxygen levels for native aquatic species.</div>
+      </div>
+      <div class="glass p-7">
+        <div class="font-display font-semibold text-cyan-glow mb-2">Biomass Reuse</div>
+        <div class="text-sm text-gray-400 leading-relaxed">Harvested material feeds composting, biogas digesters and briquette production.</div>
+      </div>
+      <div class="glass p-7">
+        <div class="font-display font-semibold text-cyan-glow mb-2">Pollution Reduction</div>
+        <div class="text-sm text-gray-400 leading-relaxed">Removes nutrient-heavy biomass that would otherwise rot in the lake bed.</div>
+      </div>
+      <div class="glass p-7">
+        <div class="font-display font-semibold text-cyan-glow mb-2">Carbon-Neutral Operation</div>
+        <div class="text-sm text-gray-400 leading-relaxed">100% electric drive with optional solar offset — zero on-site emissions.</div>
+      </div>
+      <div class="glass p-7">
+        <div class="font-display font-semibold text-cyan-glow mb-2">Community Health</div>
+        <div class="text-sm text-gray-400 leading-relaxed">Reduces mosquito-breeding habitat in stagnant urban water bodies.</div>
+      </div>
+      <div class="glass p-7">
+        <div class="font-display font-semibold text-cyan-glow mb-2">Data for Decisions</div>
+        <div class="text-sm text-gray-400 leading-relaxed">Telemetry feeds municipal dashboards with measurable cleanup metrics.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════
+     SECTION 9: GALLERY
+════════════════════════════════════════════════════════ -->
+<section class="relative py-32" style="z-index: 1;">
+  <div class="max-w-7xl mx-auto px-6">
+    <div class="grid lg:grid-cols-12 gap-12 mb-12">
+      <div class="lg:col-span-7 reveal">
+        <div class="eyebrow">08 / GALLERY</div>
+        <h2 class="h-title" style="font-size: clamp(2rem, 4vw, 3.4rem);">
+          Engineering <span class="gradient-text">in the open.</span>
+        </h2>
+      </div>
+    </div>
+
+    <div class="grid md:grid-cols-3 gap-4 reveal">
+      <!-- Gallery items use SVG illustrations -->
+      <div class="gal-item">
+        <svg viewBox="0 0 400 300" class="w-full h-full">
+          <defs>
+            <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#02060d"/>
+              <stop offset="1" stop-color="#0a1828"/>
+            </linearGradient>
+            <pattern id="grid1" width="20" height="20" patternUnits="userSpaceOnUse">
+              <path d="M20 0 L0 0 0 20" fill="none" stroke="rgba(0,240,255,0.08)" stroke-width="1"/>
+            </pattern>
+          </defs>
+          <rect width="400" height="300" fill="url(#g1)"/>
+          <rect width="400" height="300" fill="url(#grid1)"/>
+          <!-- boat side view -->
+          <g transform="translate(60,120)">
+            <path d="M0,40 L40,10 L240,10 L280,40 L260,60 L20,60 Z" fill="rgba(0,240,255,0.15)" stroke="#00f0ff" stroke-width="1.5"/>
+            <rect x="60" y="-20" width="80" height="30" fill="rgba(0,255,136,0.1)" stroke="#00ff88" stroke-width="1"/>
+            <circle cx="240" cy="55" r="6" fill="none" stroke="#00f0ff" stroke-width="1"/>
+            <circle cx="40" cy="55" r="6" fill="none" stroke="#00f0ff" stroke-width="1"/>
+            <line x1="0" y1="80" x2="280" y2="80" stroke="rgba(0,240,255,0.3)" stroke-dasharray="3,3"/>
+            <text x="140" y="100" fill="#00f0ff" font-family="JetBrains Mono" font-size="9" text-anchor="middle">SIDE PROFILE · 1.8m</text>
+          </g>
+        </svg>
+        <div class="gal-overlay">
+          <div>
+            <div class="font-mono text-xs text-cyan-glow mb-1">SKETCH · 01</div>
+            <div class="font-display font-semibold">Side Profile</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="gal-item">
+        <svg viewBox="0 0 400 300" class="w-full h-full">
+          <rect width="400" height="300" fill="url(#g1)"/>
+          <rect width="400" height="300" fill="url(#grid1)"/>
+          <g transform="translate(80,80)">
+            <ellipse cx="120" cy="80" rx="110" ry="55" fill="none" stroke="#00f0ff" stroke-width="1.5"/>
+            <ellipse cx="120" cy="80" rx="80" ry="35" fill="rgba(0,240,255,0.1)" stroke="#00f0ff" stroke-width="1"/>
+            <circle cx="30" cy="80" r="5" fill="#00ff88"/>
+            <circle cx="210" cy="80" r="5" fill="#00ff88"/>
+            <line x1="120" y1="40" x2="120" y2="120" stroke="rgba(0,240,255,0.3)" stroke-dasharray="2,2"/>
+            <text x="120" y="155" fill="#00f0ff" font-family="JetBrains Mono" font-size="9" text-anchor="middle">TOP VIEW · 0.9m BEAM</text>
+          </g>
+        </svg>
+        <div class="gal-overlay">
+          <div>
+            <div class="font-mono text-xs text-cyan-glow mb-1">SKETCH · 02</div>
+            <div class="font-display font-semibold">Top-Down Layout</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="gal-item">
+        <svg viewBox="0 0 400 300" class="w-full h-full">
+          <rect width="400" height="300" fill="url(#g1)"/>
+          <rect width="400" height="300" fill="url(#grid1)"/>
+          <g transform="translate(100,80)">
+            <rect x="0" y="20" width="180" height="100" rx="6" fill="rgba(0,240,255,0.08)" stroke="#00f0ff" stroke-width="1.5"/>
+            <circle cx="40" cy="70" r="18" fill="none" stroke="#00ff88" stroke-width="1.5"/>
+            <circle cx="40" cy="70" r="6" fill="#00ff88"/>
+            <circle cx="90" cy="70" r="18" fill="none" stroke="#00ff88" stroke-width="1.5"/>
+            <circle cx="90" cy="70" r="6" fill="#00ff88"/>
+            <line x1="20" y1="70" x2="110" y2="70" stroke="rgba(0,255,136,0.3)" stroke-dasharray="2,2"/>
+            <rect x="130" y="50" width="40" height="40" fill="rgba(0,255,136,0.15)" stroke="#00ff88"/>
+            <text x="90" y="150" fill="#00f0ff" font-family="JetBrains Mono" font-size="9" text-anchor="middle">SHREDDER ASSEMBLY</text>
+          </g>
+        </svg>
+        <div class="gal-overlay">
+          <div>
+            <div class="font-mono text-xs text-cyan-glow mb-1">SKETCH · 03</div>
+            <div class="font-display font-semibold">Shredder Detail</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="gal-item">
+        <svg viewBox="0 0 400 300" class="w-full h-full">
+          <rect width="400" height="300" fill="url(#g1)"/>
+          <rect width="400" height="300" fill="url(#grid1)"/>
+          <g transform="translate(70,60)">
+            <!-- Conveyor inclined -->
+            <path d="M0,160 L80,40 L120,40 L40,160 Z" fill="rgba(0,240,255,0.1)" stroke="#00f0ff" stroke-width="1.5"/>
+            <circle cx="20" cy="150" r="10" fill="none" stroke="#00ff88" stroke-width="1.5"/>
+            <circle cx="100" cy="50" r="10" fill="none" stroke="#00ff88" stroke-width="1.5"/>
+            <line x1="30" y1="140" x2="110" y2="20" stroke="rgba(0,255,136,0.4)"/>
+            <line x1="50" y1="160" x2="130" y2="40" stroke="rgba(0,255,136,0.4)"/>
+            <!-- cleats -->
+            <line x1="20" y1="130" x2="40" y2="130" stroke="#00ff88" stroke-width="2"/>
+            <line x1="40" y1="100" x2="60" y2="100" stroke="#00ff88" stroke-width="2"/>
+            <line x1="60" y1="70" x2="80" y2="70" stroke="#00ff88" stroke-width="2"/>
+            <text x="120" y="190" fill="#00f0ff" font-family="JetBrains Mono" font-size="9" text-anchor="middle">CONVEYOR INCLINE · 35°</text>
+          </g>
+        </svg>
+        <div class="gal-overlay">
+          <div>
+            <div class="font-mono text-xs text-cyan-glow mb-1">SKETCH · 04</div>
+            <div class="font-display font-semibold">Conveyor Geometry</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="gal-item">
+        <svg viewBox="0 0 400 300" class="w-full h-full">
+          <rect width="400" height="300" fill="url(#g1)"/>
+          <rect width="400" height="300" fill="url(#grid1)"/>
+          <g transform="translate(150,100)">
+            <circle cx="50" cy="50" r="45" fill="none" stroke="#00f0ff" stroke-width="1.5"/>
+            <circle cx="50" cy="50" r="30" fill="rgba(0,240,255,0.1)" stroke="#00f0ff" stroke-width="1"/>
+            <!-- propeller blades -->
+            <ellipse cx="50" cy="20" rx="6" ry="20" fill="rgba(0,255,136,0.2)" stroke="#00ff88"/>
+            <ellipse cx="50" cy="80" rx="6" ry="20" fill="rgba(0,255,136,0.2)" stroke="#00ff88"/>
+            <ellipse cx="20" cy="50" rx="20" ry="6" fill="rgba(0,255,136,0.2)" stroke="#00ff88"/>
+            <ellipse cx="80" cy="50" rx="20" ry="6" fill="rgba(0,255,136,0.2)" stroke="#00ff88"/>
+            <circle cx="50" cy="50" r="5" fill="#00f0ff"/>
+            <text x="50" y="130" fill="#00f0ff" font-family="JetBrains Mono" font-size="9" text-anchor="middle">THRUSTER · BLDC 350W</text>
+          </g>
+        </svg>
+        <div class="gal-overlay">
+          <div>
+            <div class="font-mono text-xs text-cyan-glow mb-1">SKETCH · 05</div>
+            <div class="font-display font-semibold">Propulsion Module</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="gal-item">
+        <svg viewBox="0 0 400 300" class="w-full h-full">
+          <rect width="400" height="300" fill="url(#g1)"/>
+          <rect width="400" height="300" fill="url(#grid1)"/>
+          <g transform="translate(60,90)">
+            <!-- Block diagram -->
+            <rect x="0" y="0" width="60" height="40" fill="rgba(0,240,255,0.1)" stroke="#00f0ff"/>
+            <text x="30" y="25" fill="#00f0ff" font-size="8" font-family="JetBrains Mono" text-anchor="middle">GPS</text>
+            <rect x="100" y="0" width="60" height="40" fill="rgba(0,240,255,0.1)" stroke="#00f0ff"/>
+            <text x="130" y="25" fill="#00f0ff" font-size="8" font-family="JetBrains Mono" text-anchor="middle">MCU</text>
+            <rect x="200" y="0" width="60" height="40" fill="rgba(0,240,255,0.1)" stroke="#00f0ff"/>
+            <text x="230" y="25" fill="#00f0ff" font-size="8" font-family="JetBrains Mono" text-anchor="middle">DRIVE</text>
+            <rect x="0" y="80" width="60" height="40" fill="rgba(0,255,136,0.1)" stroke="#00ff88"/>
+            <text x="30" y="105" fill="#00ff88" font-size="8" font-family="JetBrains Mono" text-anchor="middle">SONAR</text>
+            <rect x="100" y="80" width="60" height="40" fill="rgba(0,255,136,0.1)" stroke="#00ff88"/>
+            <text x="130" y="105" fill="#00ff88" font-size="8" font-family="JetBrains Mono" text-anchor="middle">BMS</text>
+            <rect x="200" y="80" width="60" height="40" fill="rgba(0,255,136,0.1)" stroke="#00ff88"/>
+            <text x="230" y="105" fill="#00ff88" font-size="8" font-family="JetBrains Mono" text-anchor="middle">4G/LTE</text>
+            <line x1="60" y1="20" x2="100" y2="20" stroke="#00f0ff"/>
+            <line x1="160" y1="20" x2="200" y2="20" stroke="#00f0ff"/>
+            <line x1="60" y1="100" x2="100" y2="100" stroke="#00ff88"/>
+            <line x1="160" y1="100" x2="200" y2="100" stroke="#00ff88"/>
+            <line x1="130" y1="40" x2="130" y2="80" stroke="#00f0ff" stroke-dasharray="2,2"/>
+            <text x="140" y="150" fill="#00f0ff" font-family="JetBrains Mono" font-size="9" text-anchor="middle">SYSTEM ARCHITECTURE</text>
+          </g>
+        </svg>
+        <div class="gal-overlay">
+          <div>
+            <div class="font-mono text-xs text-cyan-glow mb-1">DIAGRAM · 06</div>
+            <div class="font-display font-semibold">Electronics Stack</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════
+     SECTION 10: CONTACT
+════════════════════════════════════════════════════════ -->
+<section id="contact" class="relative py-32" style="z-index: 1;">
+  <div class="max-w-7xl mx-auto px-6">
+    <div class="grid lg:grid-cols-2 gap-12">
+
+      <div class="reveal">
+        <div class="eyebrow">09 / CONTACT</div>
+        <h2 class="h-title" style="font-size: clamp(2rem, 4vw, 3.4rem); margin-bottom: 1.5rem;">
+          Build with us.<br/><span class="gradient-text">Restore a waterway.</span>
+        </h2>
+        <p class="text-gray-400 leading-relaxed mb-10 max-w-md">
+          Municipality, resort, industrial estate or research team — get in touch to pilot an EV SQUARE unit on your water body.
+        </p>
+
+        <div class="space-y-5">
+          <div class="glass p-5 flex items-center gap-4">
+            <div class="w-10 h-10 rounded-full flex items-center justify-center" style="background: rgba(0,240,255,0.15); border: 1px solid rgba(0,240,255,0.3);">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00f0ff" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+            </div>
+            <div>
+              <div class="text-xs font-mono text-gray-500">PHONE</div>
+              <a href="tel:+918072280522" class="font-display text-cyan-glow hover:underline">+91-80722-80522</a>
+            </div>
+          </div>
+          <div class="glass p-5 flex items-center gap-4">
+            <div class="w-10 h-10 rounded-full flex items-center justify-center" style="background: rgba(0,240,255,0.15); border: 1px solid rgba(0,240,255,0.3);">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00f0ff" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            </div>
+            <div>
+              <div class="text-xs font-mono text-gray-500">EMAIL</div>
+              <a href="mailto:contact@goev2.com" class="font-display text-cyan-glow hover:underline">contact@goev2.com</a>
+            </div>
+          </div>
+          <div class="glass p-5 flex items-center gap-4">
+            <div class="w-10 h-10 rounded-full flex items-center justify-center" style="background: rgba(0,240,255,0.15); border: 1px solid rgba(0,240,255,0.3);">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00f0ff" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            </div>
+            <div>
+              <div class="text-xs font-mono text-gray-500">HEADQUARTERS</div>
+              <div class="font-display text-cyan-glow">9A, Bharathi Street, Radha Nagar</div>
+              <div class="text-sm text-gray-400">Chromepet, Chennai – 600044</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Form -->
+      <form class="glass p-8 reveal" style="border-radius: 14px;" onsubmit="event.preventDefault(); alert('Thanks — we will be in touch shortly.');">
+        <div class="font-mono text-xs text-cyan-glow mb-1">// REQUEST FORM</div>
+        <div class="font-display text-2xl font-semibold mb-6">Pilot deployment enquiry</div>
+        <div class="space-y-4">
+          <div>
+            <label class="text-xs font-mono text-gray-500 mb-2 block">FULL NAME</label>
+            <input type="text" class="input-field" placeholder="Your name" required />
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="text-xs font-mono text-gray-500 mb-2 block">EMAIL</label>
+              <input type="email" class="input-field" placeholder="you@org.com" required />
+            </div>
+            <div>
+              <label class="text-xs font-mono text-gray-500 mb-2 block">PHONE</label>
+              <input type="tel" class="input-field" placeholder="+91 ..." />
+            </div>
+          </div>
+          <div>
+            <label class="text-xs font-mono text-gray-500 mb-2 block">ORGANIZATION</label>
+            <input type="text" class="input-field" placeholder="Municipality / Resort / Company" />
+          </div>
+          <div>
+            <label class="text-xs font-mono text-gray-500 mb-2 block">MESSAGE</label>
+            <textarea class="input-field" rows="4" placeholder="Tell us about your water body..."></textarea>
+          </div>
+          <button type="submit" class="btn-primary w-full justify-center" style="margin-top: 0.5rem;">
+            Submit Enquiry
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════
+     FOOTER
+════════════════════════════════════════════════════════ -->
+<footer class="relative border-t border-cyan-glow/10 py-12" style="z-index: 1;">
+  <div class="max-w-7xl mx-auto px-6">
+    <div class="grid md:grid-cols-3 gap-8 items-start">
+      <div>
+        <div class="brand text-2xl mb-3"><span class="brand-dot"></span>EV·SQUARE</div>
+        <div class="text-sm text-gray-500 leading-relaxed max-w-xs">Robotics for ecosystem restoration. Engineered in Chennai. Deployed across India.</div>
+      </div>
+      <div class="font-mono text-xs text-gray-500 space-y-2">
+        <div class="text-cyan-glow mb-2">// QUICK LINKS</div>
+        <div><a href="#about" class="hover:text-cyan-glow">Mission</a></div>
+        <div><a href="#explore" class="hover:text-cyan-glow">Explore the Boat</a></div>
+        <div><a href="#tech" class="hover:text-cyan-glow">Technology</a></div>
+        <div><a href="#contact" class="hover:text-cyan-glow">Contact</a></div>
+      </div>
+      <div class="font-mono text-xs text-gray-500 space-y-2">
+        <div class="text-cyan-glow mb-2">// LOCATION</div>
+        <div>9A, Bharathi Street</div>
+        <div>Radha Nagar, Chromepet</div>
+        <div>Chennai – 600044</div>
+        <div class="mt-3 text-neon-green">● OPERATIONAL · 13.0050°N, 80.1444°E</div>
+      </div>
+    </div>
+    <div class="mt-10 pt-6 border-t border-cyan-glow/5 flex flex-col md:flex-row justify-between items-center text-xs font-mono text-gray-500 gap-3">
+      <div>© 2026 EV SQUARE. ALL SYSTEMS NOMINAL.</div>
+      <div>BUILT FOR EARTH · ENGINEERED IN INDIA</div>
+    </div>
+  </div>
+</footer>
+
+<!-- ════════════════════════════════════════════════════════
+     SCRIPTS
+════════════════════════════════════════════════════════ -->
+<script>
+/* ─────────────────────────────────────────────
+   PARTICLES (hero ambient)
+───────────────────────────────────────────── */
+(function initParticles() {
+  const wrap = document.getElementById('hero-particles');
+  if (!wrap) return;
+  for (let i = 0; i < 40; i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    const size = 1 + Math.random() * 2.5;
+    p.style.width = size + 'px';
+    p.style.height = size + 'px';
+    p.style.left = Math.random() * 100 + '%';
+    p.style.top = Math.random() * 100 + '%';
+    p.style.opacity = 0.2 + Math.random() * 0.5;
+    p.style.boxShadow = '0 0 ' + (size * 4) + 'px var(--cyan)';
+    p.style.animation = `floatP ${10 + Math.random() * 20}s ease-in-out ${Math.random() * 5}s infinite`;
+    wrap.appendChild(p);
+  }
+  const style = document.createElement('style');
+  style.textContent = `@keyframes floatP {
+    0%, 100% { transform: translate(0,0); }
+    33% { transform: translate(${20}px, ${-30}px); }
+    66% { transform: translate(${-15}px, ${20}px); }
+  }`;
+  document.head.appendChild(style);
+})();
+
+/* ─────────────────────────────────────────────
+   LIVE CLOCK in hero HUD
+───────────────────────────────────────────── */
+setInterval(() => {
+  const el = document.getElementById('hero-time');
+  if (!el) return;
+  const d = new Date();
+  el.textContent = d.toTimeString().slice(0, 8);
+}, 1000);
+
+/* ─────────────────────────────────────────────
+   SCROLL REVEAL
+───────────────────────────────────────────── */
+const revealObserver = new IntersectionObserver((entries) => {
+  entries.forEach((e) => {
+    if (e.isIntersecting) e.target.classList.add('in');
+  });
+}, { threshold: 0.15 });
+document.querySelectorAll('.reveal').forEach((el) => revealObserver.observe(el));
+
+/* ─────────────────────────────────────────────
+   STAT COUNTERS
+───────────────────────────────────────────── */
+const statObserver = new IntersectionObserver((entries) => {
+  entries.forEach((entry) => {
+    if (!entry.isIntersecting) return;
+    document.querySelectorAll('[data-target]').forEach((el) => {
+      if (el.dataset.counted) return;
+      el.dataset.counted = '1';
+      const target = +el.dataset.target;
+      const dur = 1600;
+      const start = performance.now();
+      function tick(now) {
+        const t = Math.min(1, (now - start) / dur);
+        const ease = 1 - Math.pow(1 - t, 3);
+        el.textContent = Math.round(target * ease);
+        if (t < 1) requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    });
+    statObserver.disconnect();
+  });
+}, { threshold: 0.3 });
+const impact = document.getElementById('impact');
+if (impact) statObserver.observe(impact);
+
+/* ═════════════════════════════════════════════
+   THREE.JS · BOAT SCENE BUILDER
+   Builds the autonomous water-hyacinth cleanup boat
+   from primitive geometries with full detail.
+═════════════════════════════════════════════ */
+
+function buildBoatScene(canvas, opts = {}) {
+  const { interactive = true } = opts;
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+
+  // Scene
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.Fog(0x02060d, 18, 50);
+
+  // Camera
+  const camera = new THREE.PerspectiveCamera(38, w / h, 0.1, 200);
+  camera.position.set(11, 7, 13);
+
+  // Renderer
+  const renderer = new THREE.WebGLRenderer({
+    canvas, antialias: true, alpha: true, powerPreference: 'high-performance'
+  });
+  renderer.setSize(w, h, false);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.15;
+
+  // Lighting
+  const ambient = new THREE.AmbientLight(0x4080a0, 0.5);
+  scene.add(ambient);
+
+  const keyLight = new THREE.DirectionalLight(0xffffff, 1.1);
+  keyLight.position.set(8, 14, 6);
+  keyLight.castShadow = true;
+  keyLight.shadow.mapSize.set(1024, 1024);
+  keyLight.shadow.camera.left = -10;
+  keyLight.shadow.camera.right = 10;
+  keyLight.shadow.camera.top = 10;
+  keyLight.shadow.camera.bottom = -10;
+  scene.add(keyLight);
+
+  const cyanFill = new THREE.PointLight(0x00f0ff, 1.6, 30);
+  cyanFill.position.set(-6, 4, 4);
+  scene.add(cyanFill);
+
+  const greenFill = new THREE.PointLight(0x00ff88, 0.9, 25);
+  greenFill.position.set(6, 3, -5);
+  scene.add(greenFill);
+
+  // Hemispheric for water reflection feel
+  const hemi = new THREE.HemisphereLight(0x88ccff, 0x002030, 0.45);
+  scene.add(hemi);
+
+  // ── Materials
+  const M = {
+    hullDark:    new THREE.MeshStandardMaterial({ color: 0x0a1828, metalness: 0.65, roughness: 0.35 }),
+    hullLight:   new THREE.MeshStandardMaterial({ color: 0x152538, metalness: 0.5, roughness: 0.4 }),
+    cyanGlow:    new THREE.MeshStandardMaterial({ color: 0x00f0ff, emissive: 0x00f0ff, emissiveIntensity: 1.0, metalness: 0.2, roughness: 0.5 }),
+    greenGlow:   new THREE.MeshStandardMaterial({ color: 0x00ff88, emissive: 0x00ff88, emissiveIntensity: 0.9, metalness: 0.2, roughness: 0.5 }),
+    metal:       new THREE.MeshStandardMaterial({ color: 0xcdd6e3, metalness: 0.9, roughness: 0.25 }),
+    darkMetal:   new THREE.MeshStandardMaterial({ color: 0x556070, metalness: 0.9, roughness: 0.35 }),
+    rubber:      new THREE.MeshStandardMaterial({ color: 0x111820, metalness: 0.2, roughness: 0.85 }),
+    glass:       new THREE.MeshPhysicalMaterial({
+      color: 0x66ffcc, metalness: 0, roughness: 0.05,
+      transmission: 0.85, transparent: true, opacity: 0.35,
+      clearcoat: 1.0, ior: 1.4, thickness: 0.5
+    }),
+    solar:       new THREE.MeshStandardMaterial({ color: 0x0a2255, metalness: 0.4, roughness: 0.2, emissive: 0x001140, emissiveIntensity: 0.3 }),
+    biomass:     new THREE.MeshStandardMaterial({ color: 0x4d7a3a, roughness: 0.85, metalness: 0.05 }),
+    hyacinth:    new THREE.MeshStandardMaterial({ color: 0x6fa84e, roughness: 0.8 }),
+    flower:      new THREE.MeshStandardMaterial({ color: 0xb89be3, roughness: 0.6, emissive: 0x6a4d99, emissiveIntensity: 0.1 }),
+    accent:      new THREE.MeshStandardMaterial({ color: 0xff7733, metalness: 0.4, roughness: 0.5 }),
+  };
+
+  // ── Container groups (named for interactivity)
+  const boatRoot = new THREE.Group();
+  scene.add(boatRoot);
+
+  const groups = {
+    hull:      new THREE.Group(),
+    conveyor:  new THREE.Group(),
+    shredder:  new THREE.Group(),
+    storage:   new THREE.Group(),
+    propeller: new THREE.Group(),
+    gps:       new THREE.Group(),
+    solar:     new THREE.Group(),
+    battery:   new THREE.Group(),
+  };
+  Object.values(groups).forEach((g) => boatRoot.add(g));
+
+  /* ── HULL ───────────────────────────────── */
+  // Main hull body (rounded box look using a box + side panels)
+  const hullGeom = new THREE.BoxGeometry(6.5, 1.1, 2.4);
+  const hull = new THREE.Mesh(hullGeom, M.hullDark);
+  hull.position.set(0, 0, 0);
+  hull.castShadow = hull.receiveShadow = true;
+  groups.hull.add(hull);
+
+  // Hull bottom (slanted prow front)
+  const prowGeom = new THREE.BoxGeometry(1.2, 1.1, 2.4);
+  const prow = new THREE.Mesh(prowGeom, M.hullDark);
+  prow.position.set(2.9, 0, 0);
+  prow.rotation.z = -0.18;
+  prow.castShadow = prow.receiveShadow = true;
+  groups.hull.add(prow);
+
+  // Side cyan accent strip
+  for (const sx of [1.2, -1.2]) {
+    const stripGeom = new THREE.BoxGeometry(6, 0.05, 0.04);
+    const strip = new THREE.Mesh(stripGeom, M.cyanGlow);
+    strip.position.set(0, 0.2, sx);
+    groups.hull.add(strip);
+  }
+
+  // Deck (upper surface)
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(6.5, 0.08, 2.4), M.hullLight);
+  deck.position.set(0, 0.6, 0);
+  deck.receiveShadow = true;
+  groups.hull.add(deck);
+
+  // Bow trim
+  const bow = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.6, 2.4), M.cyanGlow);
+  bow.position.set(3.5, 0.3, 0);
+  groups.hull.add(bow);
+
+  // "EVS·01" label panel
+  const labelPlate = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.25, 0.02), M.darkMetal);
+  labelPlate.position.set(0, 0.15, 1.21);
+  groups.hull.add(labelPlate);
+
+  /* ── CONVEYOR (front, inclined) ──────────── */
+  // Conveyor frame (two side rails)
+  const convGroup = groups.conveyor;
+  const conveyorAngle = -Math.PI / 6; // ~ -30°
+
+  const convPivot = new THREE.Group();
+  convPivot.position.set(3.0, 0.4, 0);
+  convPivot.rotation.z = conveyorAngle;
+  convGroup.add(convPivot);
+
+  // Two side rails
+  for (const sz of [0.85, -0.85]) {
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.08, 0.08), M.metal);
+    rail.position.set(1.6, 0, sz);
+    rail.castShadow = true;
+    convPivot.add(rail);
+  }
+  // Rollers (front & back)
+  const rollerGeom = new THREE.CylinderGeometry(0.18, 0.18, 1.8, 24);
+  const rollerFront = new THREE.Mesh(rollerGeom, M.darkMetal);
+  rollerFront.rotation.x = Math.PI / 2;
+  rollerFront.position.set(3.3, 0, 0);
+  rollerFront.castShadow = true;
+  convPivot.add(rollerFront);
+
+  const rollerBack = new THREE.Mesh(rollerGeom, M.darkMetal);
+  rollerBack.rotation.x = Math.PI / 2;
+  rollerBack.position.set(0, 0, 0);
+  rollerBack.castShadow = true;
+  convPivot.add(rollerBack);
+
+  // Conveyor belt surface
+  const beltSurface = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.06, 1.7), M.rubber);
+  beltSurface.position.set(1.65, 0, 0);
+  convPivot.add(beltSurface);
+
+  // Paddle cleats (these we animate)
+  const cleats = [];
+  const cleatCount = 8;
+  for (let i = 0; i < cleatCount; i++) {
+    const cleat = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.14, 1.7), M.cyanGlow);
+    cleat.position.set(-0.2 + (i / cleatCount) * 3.4, 0.06, 0);
+    convPivot.add(cleat);
+    cleats.push(cleat);
+  }
+
+  // Floating hyacinth bunches on water (around boat front)
+  const hyacinthGroup = new THREE.Group();
+  for (let i = 0; i < 14; i++) {
+    const cluster = new THREE.Group();
+    const leafCount = 3 + Math.floor(Math.random() * 3);
+    for (let j = 0; j < leafCount; j++) {
+      const leaf = new THREE.Mesh(
+        new THREE.SphereGeometry(0.13, 8, 6),
+        M.hyacinth
+      );
+      leaf.scale.set(1.4, 0.4, 1);
+      leaf.position.set(
+        (Math.random() - 0.5) * 0.25,
+        Math.random() * 0.05,
+        (Math.random() - 0.5) * 0.25
+      );
+      leaf.rotation.y = Math.random() * Math.PI;
+      cluster.add(leaf);
+    }
+    // Add small flower on top
+    if (Math.random() > 0.5) {
+      const flower = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), M.flower);
+      flower.position.y = 0.12;
+      cluster.add(flower);
+    }
+    cluster.position.set(
+      4.5 + Math.random() * 3,
+      -0.55 + Math.random() * 0.05,
+      (Math.random() - 0.5) * 4
+    );
+    cluster.userData.driftSpeed = 0.05 + Math.random() * 0.08;
+    cluster.userData.bobOffset = Math.random() * Math.PI * 2;
+    hyacinthGroup.add(cluster);
+  }
+  scene.add(hyacinthGroup);
+
+  /* ── HOPPER / CHUTE (between conveyor & shredder) ── */
+  const hopper = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.4, 0.7, 0.6, 4),
+    M.darkMetal
+  );
+  hopper.position.set(1.1, 0.95, 0);
+  hopper.rotation.y = Math.PI / 4;
+  hopper.castShadow = true;
+  groups.conveyor.add(hopper);
+
+  /* ── SHREDDER UNIT ────────────────────────── */
+  // Outer housing
+  const shredderHousing = new THREE.Mesh(
+    new THREE.BoxGeometry(1.4, 0.9, 1.6),
+    M.hullLight
+  );
+  shredderHousing.position.set(0.4, 1.05, 0);
+  shredderHousing.castShadow = true;
+  groups.shredder.add(shredderHousing);
+
+  // Front cyan accent panel
+  const shredderPanel = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.5, 1.4), M.cyanGlow);
+  shredderPanel.position.set(1.1, 1.05, 0);
+  shredderPanel.material = M.cyanGlow.clone();
+  shredderPanel.material.emissiveIntensity = 0.5;
+  groups.shredder.add(shredderPanel);
+
+  // Twin counter-rotating blade shafts (visible through gap)
+  const bladeShaftL = new THREE.Group();
+  const bladeShaftR = new THREE.Group();
+  bladeShaftL.position.set(0.4, 1.05, 0.3);
+  bladeShaftR.position.set(0.4, 1.05, -0.3);
+  groups.shredder.add(bladeShaftL);
+  groups.shredder.add(bladeShaftR);
+
+  // Each shaft: a few disc blades
+  function makeBladeShaft(parent) {
+    const shaft = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.05, 0.05, 1.2, 12),
+      M.darkMetal
+    );
+    shaft.rotation.z = Math.PI / 2;
+    parent.add(shaft);
+    for (let i = -0.45; i <= 0.45; i += 0.18) {
+      // disk with serrations approximated as a flat cylinder with notches
+      const disc = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.22, 0.22, 0.04, 14),
+        M.metal
+      );
+      disc.rotation.z = Math.PI / 2;
+      disc.position.x = i;
+      parent.add(disc);
+      // tooth bumps around perimeter
+      for (let t = 0; t < 8; t++) {
+        const ang = (t / 8) * Math.PI * 2;
+        const tooth = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.07, 0.05), M.cyanGlow);
+        tooth.material = M.metal;
+        tooth.position.set(i, Math.cos(ang) * 0.22, Math.sin(ang) * 0.22);
+        parent.add(tooth);
+      }
+    }
+  }
+  makeBladeShaft(bladeShaftL);
+  makeBladeShaft(bladeShaftR);
+
+  // Top inspection window (small glass)
+  const inspWindow = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.04, 0.5), M.glass);
+  inspWindow.position.set(0.4, 1.52, 0);
+  groups.shredder.add(inspWindow);
+
+  /* ── STORAGE COMPARTMENT (rear, transparent) ── */
+  // Transparent walls
+  const storageWidth = 2.0, storageHeight = 0.95, storageDepth = 2.0;
+  const storageX = -1.8;
+  const storageBaseY = 0.7;
+
+  // Frame (cyan edges via thin boxes)
+  const edgeT = 0.04;
+  function edge(x, y, z, sx, sy, sz) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), M.cyanGlow);
+    m.position.set(x, y, z); groups.storage.add(m);
+  }
+  // 4 vertical posts
+  edge(storageX + storageWidth/2, storageBaseY + storageHeight/2, storageDepth/2, edgeT, storageHeight, edgeT);
+  edge(storageX - storageWidth/2, storageBaseY + storageHeight/2, storageDepth/2, edgeT, storageHeight, edgeT);
+  edge(storageX + storageWidth/2, storageBaseY + storageHeight/2, -storageDepth/2, edgeT, storageHeight, edgeT);
+  edge(storageX - storageWidth/2, storageBaseY + storageHeight/2, -storageDepth/2, edgeT, storageHeight, edgeT);
+  // top edges
+  edge(storageX, storageBaseY + storageHeight, storageDepth/2, storageWidth, edgeT, edgeT);
+  edge(storageX, storageBaseY + storageHeight, -storageDepth/2, storageWidth, edgeT, edgeT);
+  edge(storageX + storageWidth/2, storageBaseY + storageHeight, 0, edgeT, edgeT, storageDepth);
+  edge(storageX - storageWidth/2, storageBaseY + storageHeight, 0, edgeT, edgeT, storageDepth);
+
+  // Glass panels on each side
+  const glassFront = new THREE.Mesh(new THREE.BoxGeometry(0.02, storageHeight, storageDepth), M.glass);
+  glassFront.position.set(storageX + storageWidth/2, storageBaseY + storageHeight/2, 0);
+  groups.storage.add(glassFront);
+
+  const glassBack = new THREE.Mesh(new THREE.BoxGeometry(0.02, storageHeight, storageDepth), M.glass);
+  glassBack.position.set(storageX - storageWidth/2, storageBaseY + storageHeight/2, 0);
+  groups.storage.add(glassBack);
+
+  const glassLeft = new THREE.Mesh(new THREE.BoxGeometry(storageWidth, storageHeight, 0.02), M.glass);
+  glassLeft.position.set(storageX, storageBaseY + storageHeight/2, storageDepth/2);
+  groups.storage.add(glassLeft);
+
+  const glassRight = new THREE.Mesh(new THREE.BoxGeometry(storageWidth, storageHeight, 0.02), M.glass);
+  glassRight.position.set(storageX, storageBaseY + storageHeight/2, -storageDepth/2);
+  groups.storage.add(glassRight);
+
+  // Shredded biomass inside (clumps)
+  const biomassGroup = new THREE.Group();
+  for (let i = 0; i < 35; i++) {
+    const chunk = new THREE.Mesh(
+      new THREE.BoxGeometry(0.08 + Math.random() * 0.06, 0.04 + Math.random() * 0.03, 0.08 + Math.random() * 0.06),
+      M.biomass
+    );
+    chunk.position.set(
+      storageX + (Math.random() - 0.5) * (storageWidth - 0.15),
+      storageBaseY + 0.04 + Math.random() * 0.25,
+      (Math.random() - 0.5) * (storageDepth - 0.15)
+    );
+    chunk.rotation.set(Math.random(), Math.random(), Math.random());
+    biomassGroup.add(chunk);
+  }
+  groups.storage.add(biomassGroup);
+
+  // Storage hatch (top)
+  const hatch = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.04, 1.6), M.darkMetal);
+  hatch.position.set(storageX, storageBaseY + storageHeight + 0.05, 0);
+  groups.storage.add(hatch);
+
+  /* ── PROPULSION (rear thrusters) ────────────── */
+  for (const sz of [0.9, -0.9]) {
+    const propPivot = new THREE.Group();
+    propPivot.position.set(-3.4, -0.15, sz);
+
+    // Thruster housing
+    const housing = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.22, 0.22, 0.55, 16),
+      M.darkMetal
+    );
+    housing.rotation.z = Math.PI / 2;
+    propPivot.add(housing);
+
+    // Protective shroud
+    const shroud = new THREE.Mesh(
+      new THREE.TorusGeometry(0.27, 0.04, 8, 24),
+      M.metal
+    );
+    shroud.rotation.y = Math.PI / 2;
+    shroud.position.x = -0.3;
+    propPivot.add(shroud);
+
+    // Propeller (3 blades)
+    const propSpin = new THREE.Group();
+    propSpin.position.x = -0.32;
+    for (let b = 0; b < 3; b++) {
+      const blade = new THREE.Mesh(
+        new THREE.BoxGeometry(0.02, 0.42, 0.1),
+        M.cyanGlow
+      );
+      blade.material = M.metal;
+      blade.rotation.x = (b / 3) * Math.PI * 2;
+      blade.position.y = 0; // pivot around shaft
+      const bladeWrap = new THREE.Group();
+      bladeWrap.rotation.x = (b / 3) * Math.PI * 2;
+      const realBlade = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.35, 0.07), M.metal);
+      realBlade.position.y = 0.18;
+      realBlade.rotation.y = 0.3;
+      bladeWrap.add(realBlade);
+      propSpin.add(bladeWrap);
+    }
+    // Hub
+    const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.08, 12), M.cyanGlow);
+    hub.rotation.z = Math.PI / 2;
+    propSpin.add(hub);
+
+    propPivot.add(propSpin);
+    propPivot.userData.propSpin = propSpin;
+    groups.propeller.add(propPivot);
+  }
+
+  /* ── GPS & SENSORS (mast on top) ───────────── */
+  // Mast
+  const mast = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.04, 0.04, 1.4, 8),
+    M.metal
+  );
+  mast.position.set(-0.5, 1.7, 0);
+  groups.gps.add(mast);
+
+  // GPS dome at top
+  const gpsDome = new THREE.Mesh(
+    new THREE.SphereGeometry(0.18, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2),
+    M.cyanGlow
+  );
+  gpsDome.position.set(-0.5, 2.4, 0);
+  groups.gps.add(gpsDome);
+
+  // Antenna whip
+  const whip = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.01, 0.01, 0.5, 6),
+    M.metal
+  );
+  whip.position.set(-0.5, 2.7, 0);
+  groups.gps.add(whip);
+
+  // Status beacon (small blinking light)
+  const beacon = new THREE.Mesh(
+    new THREE.SphereGeometry(0.08, 12, 8),
+    M.greenGlow.clone()
+  );
+  beacon.position.set(-0.5, 2.95, 0);
+  groups.gps.add(beacon);
+  beacon.userData.isBeacon = true;
+
+  // Ultrasonic sensors (front corners + side)
+  const sensorPositions = [
+    [3.2, 0.55, 1.0], [3.2, 0.55, -1.0],   // front corners
+    [0, 0.55, 1.21], [0, 0.55, -1.21],     // mid sides
+    [-3.0, 0.55, 1.0], [-3.0, 0.55, -1.0], // rear corners
+  ];
+  sensorPositions.forEach((p) => {
+    const sensor = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.07, 0.07, 0.06, 12),
+      M.cyanGlow.clone()
+    );
+    sensor.material.emissiveIntensity = 0.6;
+    sensor.rotation.x = Math.PI / 2;
+    sensor.position.set(...p);
+    groups.gps.add(sensor);
+  });
+
+  /* ── SOLAR PANEL on deck ────────────────────── */
+  const solarPanel = new THREE.Mesh(
+    new THREE.BoxGeometry(1.6, 0.06, 1.4),
+    M.solar
+  );
+  solarPanel.position.set(-1.8, storageBaseY + storageHeight + 0.13, 0);
+  groups.solar.add(solarPanel);
+
+  // Solar grid lines (subtle)
+  for (let i = -0.7; i <= 0.7; i += 0.2) {
+    const line = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.07, 1.4), M.cyanGlow);
+    line.material = new THREE.MeshBasicMaterial({ color: 0x002a55 });
+    line.position.set(-1.8 + i, storageBaseY + storageHeight + 0.16, 0);
+    groups.solar.add(line);
+  }
+  for (let i = -0.6; i <= 0.6; i += 0.2) {
+    const line = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.07, 0.01), M.cyanGlow);
+    line.material = new THREE.MeshBasicMaterial({ color: 0x002a55 });
+    line.position.set(-1.8, storageBaseY + storageHeight + 0.16, i);
+    groups.solar.add(line);
+  }
+
+  /* ── BATTERY COMPARTMENT (mid hull, in body) ── */
+  // Visible side cover with vents
+  const batteryCover = new THREE.Mesh(
+    new THREE.BoxGeometry(1.4, 0.5, 0.08),
+    M.hullLight
+  );
+  batteryCover.position.set(-0.8, -0.05, 1.16);
+  groups.battery.add(batteryCover);
+
+  // Vent slits (green glow)
+  for (let i = -0.6; i <= 0.6; i += 0.15) {
+    const vent = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.03, 0.02), M.greenGlow);
+    vent.material = M.greenGlow.clone();
+    vent.material.emissiveIntensity = 0.5;
+    vent.position.set(-0.8 + i, -0.05, 1.21);
+    groups.battery.add(vent);
+  }
+  // Mirrored on other side
+  const batteryCover2 = batteryCover.clone();
+  batteryCover2.position.z = -1.16;
+  groups.battery.add(batteryCover2);
+  for (let i = -0.6; i <= 0.6; i += 0.15) {
+    const vent = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.03, 0.02), M.greenGlow);
+    vent.material = M.greenGlow.clone();
+    vent.material.emissiveIntensity = 0.5;
+    vent.position.set(-0.8 + i, -0.05, -1.21);
+    groups.battery.add(vent);
+  }
+
+  /* ── WATER SURFACE ──────────────────────────── */
+  const waterGeom = new THREE.PlaneGeometry(80, 80, 80, 80);
+  const waterMat = new THREE.MeshStandardMaterial({
+    color: 0x041826,
+    metalness: 0.85,
+    roughness: 0.18,
+    transparent: true,
+    opacity: 0.92,
+  });
+  const water = new THREE.Mesh(waterGeom, waterMat);
+  water.rotation.x = -Math.PI / 2;
+  water.position.y = -0.7;
+  water.receiveShadow = true;
+  scene.add(water);
+
+  // Ripple wireframe overlay
+  const rippleGeom = new THREE.PlaneGeometry(80, 80, 40, 40);
+  const rippleMat = new THREE.MeshBasicMaterial({
+    color: 0x00f0ff,
+    wireframe: true,
+    transparent: true,
+    opacity: 0.06
+  });
+  const ripple = new THREE.Mesh(rippleGeom, rippleMat);
+  ripple.rotation.x = -Math.PI / 2;
+  ripple.position.y = -0.68;
+  scene.add(ripple);
+
+  // Animate water vertices for ripple
+  const waterPositions = waterGeom.attributes.position;
+  const waterOriginalY = [];
+  for (let i = 0; i < waterPositions.count; i++) {
+    waterOriginalY.push(waterPositions.getZ(i));
+  }
+  const ripplePositions = rippleGeom.attributes.position;
+  const rippleOriginalY = [];
+  for (let i = 0; i < ripplePositions.count; i++) {
+    rippleOriginalY.push(ripplePositions.getZ(i));
+  }
+
+  // Underwater glow (cyan rim under boat)
+  const underGlow = new THREE.PointLight(0x00f0ff, 1.5, 8);
+  underGlow.position.set(0, -1.2, 0);
+  scene.add(underGlow);
+
+  /* ── ORBIT CONTROLS ─────────────────────────── */
+  let controls = null;
+  if (interactive && THREE.OrbitControls) {
+    controls = new THREE.OrbitControls(camera, canvas);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.minDistance = 7;
+    controls.maxDistance = 28;
+    controls.maxPolarAngle = Math.PI / 2.05;
+    controls.minPolarAngle = Math.PI / 6;
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.6;
+    controls.target.set(0, 0.5, 0);
+  }
+
+  /* ── ANIMATION LOOP ─────────────────────────── */
+  const clock = new THREE.Clock();
+  let animId = null;
+  let highlight = { part: null, intensity: 0 };
+
+  function animate() {
+    animId = requestAnimationFrame(animate);
+    const t = clock.getElapsedTime();
+    const dt = clock.getDelta();
+
+    // Boat gentle bob
+    boatRoot.position.y = Math.sin(t * 0.7) * 0.06;
+    boatRoot.rotation.z = Math.sin(t * 0.5) * 0.012;
+    boatRoot.rotation.x = Math.sin(t * 0.4) * 0.008;
+
+    // Conveyor cleats moving along belt
+    cleats.forEach((c, i) => {
+      const offset = ((t * 0.6) + (i / cleats.length)) % 1;
+      c.position.x = -0.2 + offset * 3.4;
+    });
+
+    // Rollers spinning (visible at conveyor ends)
+    rollerFront.rotation.y += dt * 2.2;
+    rollerBack.rotation.y += dt * 2.2;
+
+    // Shredder blades counter-rotating
+    bladeShaftL.rotation.x += dt * 5;
+    bladeShaftR.rotation.x -= dt * 5;
+
+    // Propellers spinning
+    groups.propeller.children.forEach((p) => {
+      if (p.userData.propSpin) p.userData.propSpin.rotation.x += dt * 18;
+    });
+
+    // Beacon pulse
+    if (beacon.userData.isBeacon) {
+      const pulse = 0.5 + 0.5 * Math.sin(t * 4);
+      beacon.material.emissiveIntensity = 0.4 + pulse * 1.2;
+      beacon.scale.setScalar(0.9 + pulse * 0.2);
+    }
+
+    // Water ripples
+    for (let i = 0; i < waterPositions.count; i++) {
+      const x = waterPositions.getX(i);
+      const y = waterPositions.getY(i);
+      const z = waterOriginalY[i] + Math.sin(t * 0.8 + x * 0.3) * 0.07 + Math.cos(t * 0.6 + y * 0.4) * 0.07;
+      waterPositions.setZ(i, z);
+    }
+    waterPositions.needsUpdate = true;
+
+    for (let i = 0; i < ripplePositions.count; i++) {
+      const x = ripplePositions.getX(i);
+      const y = ripplePositions.getY(i);
+      const z = rippleOriginalY[i] + Math.sin(t * 1.0 + x * 0.5) * 0.1 + Math.cos(t * 0.8 + y * 0.5) * 0.1;
+      ripplePositions.setZ(i, z);
+    }
+    ripplePositions.needsUpdate = true;
+
+    // Floating hyacinths drift toward boat front (suction effect)
+    hyacinthGroup.children.forEach((c) => {
+      c.position.x -= c.userData.driftSpeed * dt;
+      c.position.y = -0.55 + Math.sin(t * 1.5 + c.userData.bobOffset) * 0.04;
+      c.rotation.y += dt * 0.2;
+      // Reset when consumed by conveyor
+      if (c.position.x < 3.0) {
+        c.position.x = 6 + Math.random() * 2;
+        c.position.z = (Math.random() - 0.5) * 4;
+      }
+    });
+
+    // Highlight ramp
+    if (highlight.part) {
+      highlight.intensity = Math.min(1, highlight.intensity + dt * 3);
+      applyHighlight(highlight.part, highlight.intensity);
+    } else {
+      highlight.intensity = Math.max(0, highlight.intensity - dt * 3);
+      if (highlight.intensity > 0 && highlight.lastPart) {
+        applyHighlight(highlight.lastPart, highlight.intensity);
+      } else if (highlight.lastPart) {
+        clearHighlight(highlight.lastPart);
+        highlight.lastPart = null;
+      }
+    }
+
+    if (controls) controls.update();
+    renderer.render(scene, camera);
+  }
+
+  /* ── HIGHLIGHT / FOCUS ──────────────────────── */
+  const _origEmissive = new WeakMap();
+
+  function applyHighlight(partKey, k) {
+    const grp = groups[partKey];
+    if (!grp) return;
+    grp.traverse((obj) => {
+      if (obj.isMesh && obj.material && 'emissive' in obj.material) {
+        if (!_origEmissive.has(obj)) {
+          _origEmissive.set(obj, {
+            color: obj.material.emissive.clone(),
+            intensity: obj.material.emissiveIntensity ?? 0
+          });
+        }
+        obj.material.emissive.setHex(0x00f0ff);
+        obj.material.emissiveIntensity = (_origEmissive.get(obj).intensity) + k * 0.8;
+      }
+    });
+    // Dim other groups subtly
+    Object.entries(groups).forEach(([key, g]) => {
+      if (key === partKey || key === 'hull') return;
+      g.traverse((obj) => {
+        if (obj.isMesh && obj.material && 'opacity' in obj.material) {
+          // leave alone for now to preserve readability
+        }
+      });
+    });
+  }
+
+  function clearHighlight(partKey) {
+    const grp = groups[partKey];
+    if (!grp) return;
+    grp.traverse((obj) => {
+      if (_origEmissive.has(obj)) {
+        const o = _origEmissive.get(obj);
+        obj.material.emissive.copy(o.color);
+        obj.material.emissiveIntensity = o.intensity;
+      }
+    });
+  }
+
+  function focusOnPart(partKey) {
+    if (highlight.lastPart && highlight.lastPart !== partKey) {
+      clearHighlight(highlight.lastPart);
+    }
+    highlight.part = partKey;
+    highlight.lastPart = partKey;
+
+    // Camera target shifts to a focal point per part
+    if (!controls) return;
+    const targets = {
+      conveyor: { x: 2.5, y: 0.5, z: 0, cam: [8, 4, 8] },
+      shredder: { x: 0.4, y: 1.3, z: 0, cam: [5, 4, 6] },
+      storage:  { x: -1.8, y: 1.1, z: 0, cam: [-6, 4, 7] },
+      propeller:{ x: -3.2, y: 0.0, z: 0, cam: [-7, 3, 6] },
+      gps:      { x: -0.5, y: 2.4, z: 0, cam: [4, 5, 6] },
+      solar:    { x: -1.8, y: 1.7, z: 0, cam: [-3, 6, 6] },
+      battery:  { x: -0.5, y: -0.05, z: 1.16, cam: [3, 3, 9] },
+      hull:     { x: 0, y: 0.5, z: 0, cam: [11, 7, 13] },
+    };
+    const t = targets[partKey] || targets.hull;
+    if (window.gsap) {
+      gsap.to(controls.target, { x: t.x, y: t.y, z: t.z, duration: 1.4, ease: 'power3.inOut' });
+      gsap.to(camera.position, { x: t.cam[0], y: t.cam[1], z: t.cam[2], duration: 1.4, ease: 'power3.inOut' });
+    } else {
+      controls.target.set(t.x, t.y, t.z);
+      camera.position.set(...t.cam);
+    }
+  }
+
+  function resize() {
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    renderer.setSize(w, h, false);
+  }
+  window.addEventListener('resize', resize);
+
+  /* ── RAYCAST CLICK ─────────────────────────── */
+  const raycaster = new THREE.Raycaster();
+  const mouse = new THREE.Vector2();
+  function onClick(e) {
+    const rect = canvas.getBoundingClientRect();
+    mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    const hits = raycaster.intersectObject(boatRoot, true);
+    if (hits.length === 0) return;
+    // Walk up to find which group it belongs to
+    let node = hits[0].object;
+    while (node && node !== boatRoot) {
+      for (const [key, grp] of Object.entries(groups)) {
+        if (node === grp) {
+          window.dispatchEvent(new CustomEvent('partclick', { detail: key }));
+          return;
+        }
+      }
+      node = node.parent;
+    }
+  }
+  canvas.addEventListener('click', onClick);
+
+  animate();
+
+  return { scene, camera, renderer, controls, focusOnPart };
+}
+
+/* ─────────────────────────────────────────────
+   MOUNT BOATS
+───────────────────────────────────────────── */
+const mainCanvas = document.getElementById('boat-canvas');
+let mainBoat = null;
+if (mainCanvas) {
+  // Resize canvas to match wrapper
+  function setBoatSize() {
+    const wrap = document.getElementById('boat-canvas-wrap');
+    if (!wrap) return;
+    mainCanvas.style.width = wrap.clientWidth + 'px';
+    mainCanvas.style.height = wrap.clientHeight + 'px';
+    mainCanvas.width = wrap.clientWidth * window.devicePixelRatio;
+    mainCanvas.height = wrap.clientHeight * window.devicePixelRatio;
+  }
+  setBoatSize();
+  window.addEventListener('resize', setBoatSize);
+  mainBoat = buildBoatScene(mainCanvas, { interactive: true });
+}
+
+// Hero mini-boat (non-interactive, auto-rotating)
+const heroWrap = document.getElementById('hero-boat-canvas');
+if (heroWrap) {
+  const heroCanvas = document.createElement('canvas');
+  heroCanvas.style.width = '100%';
+  heroCanvas.style.height = '100%';
+  heroCanvas.style.display = 'block';
+  heroWrap.appendChild(heroCanvas);
+  function sizeHero() {
+    heroCanvas.style.width = heroWrap.clientWidth + 'px';
+    heroCanvas.style.height = heroWrap.clientHeight + 'px';
+  }
+  sizeHero();
+  window.addEventListener('resize', sizeHero);
+  const heroBoat = buildBoatScene(heroCanvas, { interactive: true });
+  // Disable user interaction on hero (decorative)
+  if (heroBoat.controls) {
+    heroBoat.controls.enableZoom = false;
+    heroBoat.controls.enablePan = false;
+    heroBoat.controls.autoRotate = true;
+    heroBoat.controls.autoRotateSpeed = 1.4;
+  }
+}
+
+/* ─────────────────────────────────────────────
+   PART CHIPS + INFO CARD
+───────────────────────────────────────────── */
+const partData = {
+  conveyor: {
+    tag: 'SUBSYSTEM · 01',
+    title: 'Front Collection Conveyor',
+    desc: 'Inclined cleated belt scoops floating hyacinths from the water surface and transports them to the shredder. Variable speed, self-cleaning, IP67-sealed bearings.'
+  },
+  shredder: {
+    tag: 'SUBSYSTEM · 02',
+    title: 'Twin-Blade Shredder',
+    desc: 'Counter-rotating hardened steel disc blades reduce plant matter to 20 mm biomass chips. 800 W BLDC drive with overload protection.'
+  },
+  storage: {
+    tag: 'SUBSYSTEM · 03',
+    title: 'Biomass Storage Compartment',
+    desc: 'Sealed rear chamber with transparent inspection panels. Quick-release deck hatch for dockside offloading to compost or biogas processing.'
+  },
+  propeller: {
+    tag: 'SUBSYSTEM · 04',
+    title: 'Twin BLDC Thrusters',
+    desc: 'Differential thrust steering using two 350 W brushless propulsion units. Shrouded blades for safety and efficiency in vegetation-rich water.'
+  },
+  gps: {
+    tag: 'SUBSYSTEM · 05',
+    title: 'Navigation Mast',
+    desc: 'Multi-band GNSS dome, omnidirectional antenna and pulsing status beacon. Paired with six ultrasonic transducers around the hull for 360° obstacle detection.'
+  },
+  solar: {
+    tag: 'SUBSYSTEM · 06',
+    title: 'Solar Trickle Array',
+    desc: 'Optional 120 W flexible solar panel on the rear deck extends operational runtime and supports off-grid deployments.'
+  },
+  battery: {
+    tag: 'SUBSYSTEM · 07',
+    title: 'Lithium Battery Pack',
+    desc: '48 V · 2.4 kWh marine-grade LiFePO₄ pack with integrated BMS, thermal protection and quick-swap mounting. Vented side panels visible amidships.'
+  },
+  hull: {
+    tag: 'PLATFORM',
+    title: 'AQUATICA-01 Hull',
+    desc: 'Compact 1.8 m × 0.9 m glass-fibre hull rated for inland water bodies. Modular deck plates allow rapid in-field swap of any subsystem.'
+  },
+};
+
+const infoTag = document.getElementById('info-tag');
+const infoTitle = document.getElementById('info-title');
+const infoDesc = document.getElementById('info-desc');
+const infoCard = document.getElementById('info-card');
+
+function showPart(part) {
+  const d = partData[part];
+  if (!d) return;
+  if (infoTag) infoTag.textContent = d.tag;
+  if (infoTitle) infoTitle.textContent = d.title;
+  if (infoDesc) infoDesc.textContent = d.desc;
+  if (infoCard) infoCard.classList.add('show');
+
+  // Highlight active chip
+  document.querySelectorAll('#part-chips .part-chip').forEach((c) => {
+    c.classList.toggle('active', c.dataset.part === part);
+  });
+
+  // Move camera + glow
+  if (mainBoat && mainBoat.focusOnPart) mainBoat.focusOnPart(part);
+}
+
+// Bind chip clicks
+document.querySelectorAll('#part-chips .part-chip').forEach((chip) => {
+  chip.addEventListener('click', () => showPart(chip.dataset.part));
+});
+
+// 3D click events
+window.addEventListener('partclick', (e) => showPart(e.detail));
+
+// Start with conveyor highlighted once boat scene is ready
+setTimeout(() => showPart('conveyor'), 1200);
+
+/* ─────────────────────────────────────────────
+   LOADER DISMISS
+───────────────────────────────────────────── */
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    const l = document.getElementById('loader');
+    if (l) l.classList.add('done');
+  }, 900);
+});
+</script>
+</body>
+</html>
